@@ -9,6 +9,7 @@ import { RedisModule } from './core/redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { HealthController } from './core/health/health.controller';
 import { KycModule } from './kyc/kyc.module';
+import { ComplianceModule } from './compliance/compliance.module';
 import { BullModule } from '@nestjs/bullmq';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 
@@ -36,6 +37,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     RedisModule,
     AuthModule,
     KycModule,
+    ComplianceModule,
   ],
   controllers: [HealthController],
   providers: [],

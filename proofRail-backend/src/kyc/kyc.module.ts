@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { KycService } from './kyc.service';
 import { KycController } from './kyc.controller';
+import { KycWebhookController } from './kyc.webhook';
 import { WebhookProcessor } from '../queue/webhook.processor';
 
 @Module({
@@ -10,7 +11,7 @@ import { WebhookProcessor } from '../queue/webhook.processor';
       name: 'kyc',
     }),
   ],
-  controllers: [KycController],
+  controllers: [KycController, KycWebhookController],
   providers: [KycService, WebhookProcessor],
   exports: [KycService],
 })

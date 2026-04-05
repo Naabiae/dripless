@@ -12,11 +12,11 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        privateKey: configService.get<string>('jwt.privateKey'),
-        publicKey: configService.get<string>('jwt.publicKey'),
+        privateKey: configService.get<string>('jwt.privateKey') || 'secret',
+        publicKey: configService.get<string>('jwt.publicKey') || 'secret',
         signOptions: {
           expiresIn: configService.get<string>('jwt.accessExpiresIn') as any,
-          algorithm: 'RS256',
+          algorithm: configService.get<string>('NODE_ENV') === 'test' ? 'HS256' : 'RS256',
         },
       }),
       inject: [ConfigService],

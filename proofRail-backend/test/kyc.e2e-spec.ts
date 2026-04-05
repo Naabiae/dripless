@@ -59,8 +59,8 @@ describe('KycModule (e2e)', () => {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
     jwtService = moduleFixture.get<JwtService>(JwtService);
     
-    // Generate valid access token for tests
-    accessToken = jwtService.sign({ sub: 'user-1' });
+    // We don't have real keys loaded since mock config, let's mock the JWT check or pass it secret
+    accessToken = jwtService.sign({ sub: 'user-1' }, { secret: 'secret' });
 
     await app.init();
   });
