@@ -22,6 +22,56 @@ model User {
   credential    Credential?
   buyerTrades   Trade[]     @relation("BuyerTrades")
   sellerTrades  Trade[]     @relation("SellerTrades")
+  reputation    Reputation?
+}
+
+model Reputation {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  score           Int      @default(0)
+  tier            RepTier  @default(BRONZE)
+  completedTrades Int      @default(0)
+  disputesWon     Int      @default(0)
+  disputesLost    Int      @default(0)
+  cancelledTrades Int      @default(0)
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+enum RepTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+model Dispute {
+  id             String          @id @default(uuid())
+  tradeId        String          @unique
+  raisedBy       String
+  reason         String
+  buyerEvidence  Json?
+  sellerEvidence Json?
+  status         DisputeStatus   @default(OPEN)
+  resolution     DisputeResolution?
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  trade          Trade           @relation(fields: [tradeId], references: [id])
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  ESCALATED
+}
+
+enum DisputeResolution {
+  RESOLVED_BUYER
+  RESOLVED_SELLER
 }
 
 model Credential {
@@ -57,6 +107,7 @@ model Trade {
   expiresAt       DateTime
   buyer           User        @relation("BuyerTrades", fields: [buyerId], references: [id])
   seller          User        @relation("SellerTrades", fields: [sellerId], references: [id])
+  dispute         Dispute?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 }

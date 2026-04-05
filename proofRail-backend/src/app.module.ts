@@ -12,10 +12,16 @@ import { KycModule } from './kyc/kyc.module';
 import { ComplianceModule } from './compliance/compliance.module';
 import { CredentialsModule } from './credentials/credentials.module';
 import { TradesModule } from './trades/trades.module';
+import { DisputesModule } from './disputes/disputes.module';
+import { ReputationModule } from './reputation/reputation.module';
 import { BullModule } from '@nestjs/bullmq';
-import { EventEmitterModule } from '@nestjs/event-emitter';
+import { EventsModule } from './events/events.module';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 import { ScheduleModule } from '@nestjs/schedule';
+
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -34,6 +40,10 @@ import { ScheduleModule } from '@nestjs/schedule';
       }),
       inject: [ConfigService],
     }),
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 100,
+    }]),
     EventEmitterModule.forRoot(),
     PrismaModule,
     RedisModule,
@@ -42,8 +52,16 @@ import { ScheduleModule } from '@nestjs/schedule';
     ComplianceModule,
     CredentialsModule,
     TradesModule,
+    DisputesModule,
+    ReputationModule,
+    EventsModule,
   ],
   controllers: [HealthController],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
