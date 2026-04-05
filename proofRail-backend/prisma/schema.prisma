@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(uuid())
+  walletAddress String?   @unique
+  email         String?   @unique
+  passwordHash  String?
+  refreshToken  String?
+  role          Role      @default(USER)
+  kycStatus     KycStatus @default(NOT_STARTED)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  kycSessions   KycSession[]
+  complianceRecord ComplianceRecord?
+  credential    Credential?
+  buyerTrades   Trade[]     @relation("BuyerTrades")
+  sellerTrades  Trade[]     @relation("SellerTrades")
+  reputation    Reputation?
+}
+
+model Reputation {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  score           Int      @default(0)
+  tier            RepTier  @default(BRONZE)
+  completedTrades Int      @default(0)
+  disputesWon     Int      @default(0)
+  disputesLost    Int      @default(0)
+  cancelledTrades Int      @default(0)
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+enum RepTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+model Dispute {
+  id             String          @id @default(uuid())
+  tradeId        String          @unique
+  raisedBy       String
+  reason         String
+  buyerEvidence  Json?
+  sellerEvidence Json?
+  status         DisputeStatus   @default(OPEN)
+  resolution     DisputeResolution?
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  trade          Trade           @relation(fields: [tradeId], references: [id])
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  ESCALATED
+}
+
+enum DisputeResolution {
+  RESOLVED_BUYER
+  RESOLVED_SELLER
+}
+
+model Credential {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  walletAddress   String
+  claims          Json
+  signature       String
+  issuedAt        DateTime @default(now())
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  midnightProof   Json?
+  aleoRecord      Json?
+  fhenixAttestation Json?
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model Trade {
+  id              String      @id @default(uuid())
+  buyerId         String
+  sellerId        String
+  chain           Chain
+  assetSymbol     String
+  assetAmount     Decimal     @db.Decimal(20, 8)
+  fiatCurrency    String
+  fiatAmount      Decimal     @db.Decimal(20, 2)
+  fiatRate        Decimal     @db.Decimal(20, 6)
+  paymentMethod   PaymentMethod
+  paymentDetails  String?
+  status          TradeStatus @default(PENDING)
+  escrowTxHash    String?
+  completedAt     DateTime?
+  expiresAt       DateTime
+  buyer           User        @relation("BuyerTrades", fields: [buyerId], references: [id])
+  seller          User        @relation("SellerTrades", fields: [sellerId], references: [id])
+  dispute         Dispute?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+enum TradeStatus {
+  PENDING
+  ESCROW_LOCKED
+  PAYMENT_SENT
+  PAYMENT_CONFIRMED
+  COMPLETED
+  DISPUTED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CASH
+  CRYPTO_WALLET
+}
+
+enum Chain {
+  MIDNIGHT
+  ALEO
+  FHENIX
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model KycSession {
+  id           String    @id @default(uuid())
+  userId       String
+  sessionId    String    @unique
+  status       KycStatus @default(NOT_STARTED)
+  decisionData Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id])
+}
+
+enum KycStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  IN_REVIEW
+  APPROVED
+  DECLINED
+  EXPIRED
+  ABANDONED
+}
+
+model ComplianceRecord {
+  id               String           @id @default(uuid())
+  userId           String           @unique
+  status           ComplianceStatus @default(PENDING_REVIEW)
+  sanctionsResult  Json?
+  amlResult        Json?
+  lastCheckedAt    DateTime?
+  flagReason       String?
+  reviewedBy       String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  user             User             @relation(fields: [userId], references: [id])
+}
+
+enum ComplianceStatus {
+  PENDING_REVIEW
+  CLEAR
+  FLAGGED
+  BLOCKED
+}
