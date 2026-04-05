@@ -6,6 +6,7 @@ import { CreateTradeDto } from './dto/create-trade.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { MidnightEscrowService } from '../midnight/midnight-escrow.service';
 
 @Injectable()
 export class TradesService {
@@ -17,6 +18,7 @@ export class TradesService {
     private escrowService: EscrowService,
     private eventEmitter: EventEmitter2,
     @InjectQueue('trades') private tradesQueue: Queue,
+    private midnightEscrowService: MidnightEscrowService,
   ) {}
 
   async createTrade(buyerId: string, dto: CreateTradeDto) {
@@ -65,11 +67,19 @@ export class TradesService {
       throw new BadRequestException(`Cannot lock escrow in status ${trade.status}`);
     }
 
-    await this.escrowService.validateEscrowTx(trade.chain, txHash, Number(trade.assetAmount));
+    const buyer = await this.prisma.user.findUnique({ where: { id: trade.buyerId } });
+
+    // Actually lock escrow on Midnight if that's the chain
+    let actualTxHash = txHash;
+    if (trade.chain === 'MIDNIGHT') {
+       actualTxHash = await this.midnightEscrowService.lockFunds(tradeId, buyer.walletAddress, Number(trade.assetAmount));
+    }
+
+    await this.escrowService.validateEscrowTx(trade.chain, tradeId, actualTxHash, Number(trade.assetAmount));
 
     const updated = await this.prisma.trade.update({
       where: { id: tradeId },
-      data: { status: 'ESCROW_LOCKED', escrowTxHash: txHash },
+      data: { status: 'ESCROW_LOCKED', escrowTxHash: actualTxHash },
     });
 
     this.eventEmitter.emit('trade.status_changed', { tradeId, status: 'ESCROW_LOCKED' });

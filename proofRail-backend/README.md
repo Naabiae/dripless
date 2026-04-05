@@ -44,6 +44,50 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
+## Midnight Smart Contracts
+
+The ProofRail backend uses Midnight Network for privacy-preserving KYC credential verification and shielded P2P escrow.
+
+### Prerequisites
+
+- Node.js 22+
+- Docker (for running the proof server)
+- Compact CLI (`curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh`)
+- Midnight MCP server (`npx -y midnight-mcp@latest`)
+
+### Setup & Deployment
+
+1. Ensure the Proof Server is running:
+```bash
+docker-compose up -d proof-server
+```
+
+2. Compile the contracts:
+```bash
+npm run midnight:compile
+```
+
+3. Deploy contracts to Preprod:
+```bash
+npm run midnight:deploy
+```
+This saves the contract addresses to `deployment.json`.
+
+4. Verify the deployed contracts:
+```bash
+npm run midnight:verify
+```
+
+5. Run End-to-End Midnight Tests:
+```bash
+npm run test:midnight
+```
+*Note: The Midnight integration tests make actual calls to the Preprod blockchain and take ~3-5 minutes to complete due to zero-knowledge proof generation and block confirmation times.*
+
+### Faucets
+Fund your Preprod wallet using the official faucet:
+[Midnight Preprod Faucet](https://faucet.preprod.midnight.network)
+
 ## Run tests
 
 ```bash

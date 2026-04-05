@@ -5,6 +5,7 @@ import { TradesController } from './trades.controller';
 import { BullModule } from '@nestjs/bullmq';
 import { ComplianceModule } from '../compliance/compliance.module';
 import { TradesProcessor } from '../queue/trades.processor';
+import { MidnightModule } from '../midnight/midnight.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { TradesProcessor } from '../queue/trades.processor';
       name: 'trades',
     }),
     ComplianceModule,
+    MidnightModule,
   ],
   providers: [TradesService, EscrowService, TradesProcessor],
   controllers: [TradesController],
