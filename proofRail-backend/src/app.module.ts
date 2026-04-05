@@ -10,6 +10,8 @@ import { AuthModule } from './auth/auth.module';
 import { HealthController } from './core/health/health.controller';
 import { KycModule } from './kyc/kyc.module';
 import { ComplianceModule } from './compliance/compliance.module';
+import { CredentialsModule } from './credentials/credentials.module';
+import { TradesModule } from './trades/trades.module';
 import { BullModule } from '@nestjs/bullmq';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 
@@ -38,6 +40,8 @@ import { ScheduleModule } from '@nestjs/schedule';
     AuthModule,
     KycModule,
     ComplianceModule,
+    CredentialsModule,
+    TradesModule,
   ],
   controllers: [HealthController],
   providers: [],

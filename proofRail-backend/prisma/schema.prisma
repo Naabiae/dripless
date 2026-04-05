@@ -19,6 +19,70 @@ model User {
 
   kycSessions   KycSession[]
   complianceRecord ComplianceRecord?
+  credential    Credential?
+  buyerTrades   Trade[]     @relation("BuyerTrades")
+  sellerTrades  Trade[]     @relation("SellerTrades")
+}
+
+model Credential {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  walletAddress   String
+  claims          Json
+  signature       String
+  issuedAt        DateTime @default(now())
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  midnightProof   Json?
+  aleoRecord      Json?
+  fhenixAttestation Json?
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model Trade {
+  id              String      @id @default(uuid())
+  buyerId         String
+  sellerId        String
+  chain           Chain
+  assetSymbol     String
+  assetAmount     Decimal     @db.Decimal(20, 8)
+  fiatCurrency    String
+  fiatAmount      Decimal     @db.Decimal(20, 2)
+  fiatRate        Decimal     @db.Decimal(20, 6)
+  paymentMethod   PaymentMethod
+  paymentDetails  String?
+  status          TradeStatus @default(PENDING)
+  escrowTxHash    String?
+  completedAt     DateTime?
+  expiresAt       DateTime
+  buyer           User        @relation("BuyerTrades", fields: [buyerId], references: [id])
+  seller          User        @relation("SellerTrades", fields: [sellerId], references: [id])
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+enum TradeStatus {
+  PENDING
+  ESCROW_LOCKED
+  PAYMENT_SENT
+  PAYMENT_CONFIRMED
+  COMPLETED
+  DISPUTED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CASH
+  CRYPTO_WALLET
+}
+
+enum Chain {
+  MIDNIGHT
+  ALEO
+  FHENIX
 }
 
 enum Role {
