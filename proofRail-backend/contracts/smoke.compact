@@ -1,0 +1,5 @@
+pragma language_version 0.28;
+export ledger counter: Uint<64>;
+export circuit increment(): [] {
+  counter = disclose(counter + 1 as Uint<64>);
+}

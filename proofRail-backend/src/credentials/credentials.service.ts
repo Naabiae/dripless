@@ -5,6 +5,7 @@ import { MidnightAdapter } from './adapters/midnight.adapter';
 import { AleoAdapter } from './adapters/aleo.adapter';
 import { FhenixAdapter } from './adapters/fhenix.adapter';
 import { RedisService } from '../core/redis/redis.service';
+import { MidnightKycService } from '../midnight/midnight-kyc.service';
 import * as crypto from 'crypto';
 import { OnEvent } from '@nestjs/event-emitter';
 
@@ -17,6 +18,7 @@ export class CredentialsService {
     private aleoAdapter: AleoAdapter,
     private fhenixAdapter: FhenixAdapter,
     private redisService: RedisService,
+    private midnightKycService: MidnightKycService,
   ) {}
 
   @OnEvent('compliance.cleared')
@@ -77,6 +79,10 @@ export class CredentialsService {
     const aleoRecord = this.aleoAdapter.format(formattedPayload);
     const fhenixAttestation = this.fhenixAdapter.format(formattedPayload);
 
+    // Write commitment to Midnight
+    const txHash = await this.midnightKycService.registerCredential(userId, formattedPayload);
+    (midnightProof as any).txHash = txHash;
+
     await this.prisma.credential.upsert({
       where: { userId },
       update: {
@@ -125,6 +131,11 @@ export class CredentialsService {
   }
 
   async revoke(userId: string) {
+    const cred = await this.prisma.credential.findUnique({ where: { userId } });
+    if (cred) {
+      await this.midnightKycService.revokeCredential(cred.walletAddress);
+    }
+
     await this.prisma.credential.update({
       where: { userId },
       data: { revokedAt: new Date() },

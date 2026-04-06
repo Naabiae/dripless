@@ -1,0 +1,124 @@
+pragma language_version 0.28;
+import CompactStandardLibrary;
+
+enum EscrowStatus { LOCKED, RELEASED_BUYER, RELEASED_SELLER, CANCELLED, EXPIRED }
+
+struct EscrowEntry {
+  status: EscrowStatus;
+  sellerKeyHash: Bytes<32>;
+  buyerKeyHash: Bytes<32>;
+  amountCommitment: Field;     // commitment to trade amount, never revealed
+  expiresAt: Uint<64>;
+}
+
+export ledger escrowRegistry: Map<Bytes<32>, EscrowEntry>;
+export ledger round: Counter;
+
+// Witnesses
+witness getSellerKeyHash(): Bytes<32>;
+witness getBuyerKeyHash(): Bytes<32>;
+witness getTradeIdHash(): Bytes<32>;
+witness getReleaseSignatureHash(): Field;
+
+// Seller locks funds — creates escrow entry
+export circuit lockFunds(
+  tradeIdHash: Bytes<32>,
+  buyerKeyHash: Bytes<32>,
+  amountCommitment: Field,
+  expiresAt: Uint<64>
+): [] {
+  const sellerKeyHash = disclose(getSellerKeyHash());
+  
+  const existingEntry = escrowRegistry.lookup(tradeIdHash);
+  assert(existingEntry is_none, "Trade already has escrow");
+
+  const entry = EscrowEntry {
+    status: EscrowStatus.LOCKED,
+    sellerKeyHash: sellerKeyHash,
+    buyerKeyHash: disclose(buyerKeyHash),
+    amountCommitment: disclose(amountCommitment),
+    expiresAt: disclose(expiresAt),
+  };
+
+  escrowRegistry.insert(tradeIdHash, entry);
+  round.increment(1 as Uint<64>);
+}
+
+// Backend-signed instruction releases to buyer
+export circuit releaseToBuyer(
+  tradeIdHash: Bytes<32>,
+  releaseSignatureHash: Field
+): [] {
+  const entry = escrowRegistry.lookup(tradeIdHash);
+  assert(entry is_some, "Escrow not found");
+
+  const e = entry.value;
+  assert(e.status == EscrowStatus.LOCKED, "Escrow not in LOCKED state");
+  assert(e.expiresAt > round as Uint<64>, "Escrow expired");
+  assert(transientCommit(releaseSignatureHash, round as Field) 
+    == getReleaseSignatureHash(), "Invalid release signature");
+
+  const updatedEntry = EscrowEntry {
+    status: EscrowStatus.RELEASED_BUYER,
+    sellerKeyHash: e.sellerKeyHash,
+    buyerKeyHash: e.buyerKeyHash,
+    amountCommitment: e.amountCommitment,
+    expiresAt: e.expiresAt,
+  };
+  escrowRegistry.insert(tradeIdHash, updatedEntry);
+  round.increment(1 as Uint<64>);
+}
+
+// Admin-signed instruction releases to seller (dispute won by seller)
+export circuit releaseToSeller(
+  tradeIdHash: Bytes<32>,
+  releaseSignatureHash: Field
+): [] {
+  const entry = escrowRegistry.lookup(tradeIdHash);
+  assert(entry is_some, "Escrow not found");
+
+  const e = entry.value;
+  assert(e.status == EscrowStatus.LOCKED, "Escrow not in LOCKED state");
+  assert(transientCommit(releaseSignatureHash, round as Field)
+    == getReleaseSignatureHash(), "Invalid release signature");
+
+  const updatedEntry = EscrowEntry {
+    status: EscrowStatus.RELEASED_SELLER,
+    sellerKeyHash: e.sellerKeyHash,
+    buyerKeyHash: e.buyerKeyHash,
+    amountCommitment: e.amountCommitment,
+    expiresAt: e.expiresAt,
+  };
+  escrowRegistry.insert(tradeIdHash, updatedEntry);
+  round.increment(1 as Uint<64>);
+}
+
+// Seller cancels (only in LOCKED state, before expiry)
+export circuit cancelEscrow(tradeIdHash: Bytes<32>): [] {
+  const sellerKeyHash = getSellerKeyHash();
+  const entry = escrowRegistry.lookup(tradeIdHash);
+  assert(entry is_some, "Escrow not found");
+
+  const e = entry.value;
+  assert(e.status == EscrowStatus.LOCKED, "Cannot cancel non-LOCKED escrow");
+  assert(e.sellerKeyHash == sellerKeyHash, "Only seller can cancel");
+
+  const updatedEntry = EscrowEntry {
+    status: EscrowStatus.CANCELLED,
+    sellerKeyHash: e.sellerKeyHash,
+    buyerKeyHash: e.buyerKeyHash,
+    amountCommitment: e.amountCommitment,
+    expiresAt: e.expiresAt,
+  };
+  escrowRegistry.insert(tradeIdHash, updatedEntry);
+  round.increment(1 as Uint<64>);
+}
+
+// Pure read — used by backend driver to check status
+export circuit getEscrowStatus(tradeIdHash: Bytes<32>): EscrowStatus {
+  const entry = escrowRegistry.lookup(tradeIdHash);
+  if (entry is_some) {
+    return entry.value.status;
+  }
+  return EscrowStatus.CANCELLED; // default for not-found
+}

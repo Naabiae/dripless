@@ -17,5 +17,11 @@ services:
     ports:
       - "6379:6379"
 
+  proof-server:
+    image: midnightntwrk/proof-server:latest
+    ports:
+      - "6300:6300"
+    restart: unless-stopped
+
 volumes:
   postgres_data:

@@ -16,6 +16,7 @@ import { DisputesModule } from './disputes/disputes.module';
 import { ReputationModule } from './reputation/reputation.module';
 import { BullModule } from '@nestjs/bullmq';
 import { EventsModule } from './events/events.module';
+import { MidnightModule } from './midnight/midnight.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -55,6 +56,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     DisputesModule,
     ReputationModule,
     EventsModule,
+    MidnightModule,
   ],
   controllers: [HealthController],
   providers: [
