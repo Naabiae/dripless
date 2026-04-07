@@ -1,12 +1,36 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, ShieldCheck, Lock } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { api } from '../services/api';
 
 const TradeRoom = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useStore();
-  const [status, setStatus] = useState<'PENDING' | 'ESCROW_LOCKED' | 'PAYMENT_SENT' | 'COMPLETED'>('PENDING');
+  const [trade, setTrade] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+
+  const fetchTrade = async () => {
+    if (!id) return;
+    try {
+      const { data } = await api.get(`/trades/${id}`);
+      setTrade(data);
+    } catch (e) {
+      console.error("Failed to fetch trade", e);
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchTrade();
+      // Optional: Set up polling or websocket here
+      const interval = setInterval(fetchTrade, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [user, id]);
 
   if (!user) {
     return (
@@ -17,11 +41,63 @@ const TradeRoom = () => {
     );
   }
 
-  const handleAction = () => {
-    if (status === 'PENDING') setStatus('ESCROW_LOCKED');
-    else if (status === 'ESCROW_LOCKED') setStatus('PAYMENT_SENT');
-    else if (status === 'PAYMENT_SENT') setStatus('COMPLETED');
+  if (fetching && !trade) {
+    return (
+      <div className="flex-1 flex flex-col justify-center items-center">
+        <p className="text-gray-400">Loading trade details...</p>
+      </div>
+    );
+  }
+
+  if (!trade) {
+    return (
+      <div className="flex-1 flex flex-col justify-center items-center">
+        <h2 className="text-3xl font-display font-bold mb-4">Trade Not Found</h2>
+        <p className="text-gray-400">The requested trade does not exist or you do not have access.</p>
+      </div>
+    );
+  }
+
+  const isSeller = user.id === trade.sellerId;
+  const isBuyer = user.id === trade.buyerId;
+  const status = trade.status;
+
+  const handleAction = async () => {
+    setLoading(true);
+    try {
+      if (status === 'PENDING' && isSeller) {
+        // Mock a txHash for the lock-escrow action
+        await api.post(`/trades/${id}/lock-escrow`, { txHash: '0xMockEscrowHash1234567890' });
+      } else if (status === 'ESCROW_LOCKED' && isBuyer) {
+        await api.post(`/trades/${id}/payment-sent`);
+      } else if (status === 'PAYMENT_SENT' && isSeller) {
+        await api.post(`/trades/${id}/confirm-payment`);
+      }
+      await fetchTrade();
+    } catch (e: any) {
+      console.error("Failed to perform action", e);
+      alert(e.response?.data?.message || "Action failed");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  let buttonText = 'Waiting for other party...';
+  let buttonDisabled = true;
+
+  if (status === 'PENDING' && isSeller) {
+    buttonText = 'Lock Escrow (Simulate)';
+    buttonDisabled = false;
+  } else if (status === 'ESCROW_LOCKED' && isBuyer) {
+    buttonText = 'Mark Payment Sent';
+    buttonDisabled = false;
+  } else if (status === 'PAYMENT_SENT' && isSeller) {
+    buttonText = 'Confirm Fiat Received & Release';
+    buttonDisabled = false;
+  } else if (status === 'COMPLETED') {
+    buttonText = 'Trade Completed';
+    buttonDisabled = true;
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 w-full">
@@ -40,8 +116,8 @@ const TradeRoom = () => {
           </div>
           
           <div className="bg-background px-6 py-2 rounded-lg border border-surfaceHover flex items-center space-x-2">
-            <span className="h-3 w-3 rounded-full animate-pulse bg-yellow-500" />
-            <span className="font-bold text-sm text-yellow-400 tracking-wider">{status}</span>
+            <span className={`h-3 w-3 rounded-full ${status === 'COMPLETED' ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'}`} />
+            <span className={`font-bold text-sm tracking-wider ${status === 'COMPLETED' ? 'text-green-400' : 'text-yellow-400'}`}>{status}</span>
           </div>
         </div>
 
@@ -51,15 +127,15 @@ const TradeRoom = () => {
               <h3 className="text-lg font-bold font-display text-gray-200 mb-4 border-b border-surfaceHover pb-2">Trade Details</h3>
               <div className="flex justify-between py-2">
                 <span className="text-gray-400">Asset</span>
-                <span className="font-bold text-white">100 USDT</span>
+                <span className="font-bold text-white">{trade.assetAmount} {trade.assetSymbol}</span>
               </div>
               <div className="flex justify-between py-2">
                 <span className="text-gray-400">Fiat Payment</span>
-                <span className="font-bold text-white">100 USD</span>
+                <span className="font-bold text-white">{trade.fiatAmount} {trade.fiatCurrency}</span>
               </div>
               <div className="flex justify-between py-2">
                 <span className="text-gray-400">Network</span>
-                <span className="font-bold text-primary">Midnight</span>
+                <span className="font-bold text-primary">{trade.chain}</span>
               </div>
             </div>
 
@@ -70,12 +146,14 @@ const TradeRoom = () => {
                   <ShieldCheck className="h-6 w-6 text-green-400" />
                 </div>
                 <div>
-                  <p className="font-mono text-sm text-white">0xabc...def</p>
-                  <p className="text-xs text-green-400 font-semibold tracking-wider">KYC Verified • Gold Tier</p>
+                  <p className="font-mono text-sm text-white">
+                    {isBuyer ? `Seller: ${trade.sellerId.slice(0,8)}...` : `Buyer: ${trade.buyerId.slice(0,8)}...`}
+                  </p>
+                  <p className="text-xs text-green-400 font-semibold tracking-wider">KYC Verified</p>
                 </div>
               </div>
               <div className="text-sm text-gray-400 bg-background p-3 rounded border border-surfaceHover font-mono break-all">
-                Escrow Hash: 0x... (Pending)
+                Escrow Hash: {trade.escrowTxHash || '(Pending)'}
               </div>
             </div>
           </div>
@@ -120,17 +198,14 @@ const TradeRoom = () => {
 
             <button 
               onClick={handleAction}
-              disabled={status === 'COMPLETED'}
+              disabled={buttonDisabled || loading}
               className={`mt-8 w-full py-4 rounded-lg font-bold text-lg transition duration-300 shadow-[0_0_20px_rgba(0,240,255,0.3)] ${
-                status === 'COMPLETED' 
-                ? 'bg-green-500/20 text-green-500 border border-green-500/50 cursor-not-allowed shadow-none' 
+                buttonDisabled 
+                ? 'bg-surfaceHover text-gray-400 border border-gray-600 cursor-not-allowed shadow-none' 
                 : 'bg-primary text-black hover:bg-primary/90'
               }`}
             >
-              {status === 'PENDING' && 'Simulate: Lock Escrow (Seller)'}
-              {status === 'ESCROW_LOCKED' && 'Simulate: Mark Paid (Buyer)'}
-              {status === 'PAYMENT_SENT' && 'Simulate: Confirm Receipt (Seller)'}
-              {status === 'COMPLETED' && 'Trade Completed'}
+              {loading ? 'Processing...' : buttonText}
             </button>
           </div>
         </div>

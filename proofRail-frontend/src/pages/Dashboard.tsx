@@ -1,8 +1,43 @@
-import { ShieldCheck, CheckCircle, AlertTriangle, Fingerprint } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ShieldCheck, CheckCircle, AlertTriangle, Fingerprint, ExternalLink } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { api } from '../services/api';
 
 const Dashboard = () => {
-  const { user } = useStore();
+  const { user, fetchUserStatus } = useStore();
+  const [loading, setLoading] = useState(false);
+  const [credential, setCredential] = useState<any>(null);
+  const [verificationUrl, setVerificationUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchCredential = async () => {
+      if (user?.kycStatus === 'APPROVED') {
+        try {
+          const { data } = await api.get('/credentials/me');
+          setCredential(data);
+        } catch (e) {
+          console.error("Failed to fetch credential", e);
+        }
+      }
+    };
+    fetchCredential();
+  }, [user]);
+
+  const handleInitiateKyc = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.post('/kyc/initiate');
+      if (data.verificationUrl) {
+        setVerificationUrl(data.verificationUrl);
+      }
+      await fetchUserStatus();
+    } catch (e) {
+      console.error("Failed to initiate KYC", e);
+      alert("Failed to initiate KYC. See console.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!user) {
     return (
@@ -30,10 +65,15 @@ const Dashboard = () => {
                 <CheckCircle className="h-4 w-4" />
                 <span>Verified</span>
               </span>
-            ) : (
+            ) : user.kycStatus === 'PENDING' ? (
               <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full border border-yellow-500/50 flex items-center space-x-1 text-sm font-semibold">
                 <AlertTriangle className="h-4 w-4" />
                 <span>Pending</span>
+              </span>
+            ) : (
+              <span className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full border border-red-500/50 flex items-center space-x-1 text-sm font-semibold">
+                <AlertTriangle className="h-4 w-4" />
+                <span>Not Started</span>
               </span>
             )}
           </div>
@@ -41,11 +81,15 @@ const Dashboard = () => {
           <div className="space-y-4">
             <div className="bg-background rounded-lg p-4 border border-surfaceHover flex justify-between items-center">
               <span className="text-gray-400 text-sm">Universal Credential ID</span>
-              <span className="font-mono text-sm text-gray-200">cred_8f92a1...</span>
+              <span className="font-mono text-sm text-gray-200">
+                {credential ? credential.id.slice(0,12) + '...' : 'N/A'}
+              </span>
             </div>
             <div className="bg-background rounded-lg p-4 border border-surfaceHover flex justify-between items-center">
               <span className="text-gray-400 text-sm">Issued At</span>
-              <span className="font-mono text-sm text-gray-200">2026-04-01 14:30 UTC</span>
+              <span className="font-mono text-sm text-gray-200">
+                {credential ? new Date(credential.issuedAt).toLocaleString() : 'N/A'}
+              </span>
             </div>
             <div className="bg-background rounded-lg p-4 border border-surfaceHover flex justify-between items-center">
               <span className="text-gray-400 text-sm">Compliance Tier</span>
@@ -53,9 +97,37 @@ const Dashboard = () => {
             </div>
           </div>
           
-          <button className="mt-8 w-full bg-surfaceHover hover:bg-surface text-white border border-gray-600 rounded-lg py-3 font-semibold transition">
-            View Raw Credential (JSON)
-          </button>
+          {user.kycStatus === 'APPROVED' && (
+            <button 
+              onClick={() => alert(JSON.stringify(credential, null, 2))}
+              className="mt-8 w-full bg-surfaceHover hover:bg-surface text-white border border-gray-600 rounded-lg py-3 font-semibold transition"
+            >
+              View Raw Credential (JSON)
+            </button>
+          )}
+
+          {user.kycStatus !== 'APPROVED' && (
+            <div className="mt-8 space-y-4">
+              <button 
+                onClick={handleInitiateKyc}
+                disabled={loading}
+                className="w-full bg-primary text-black rounded-lg py-3 font-semibold hover:bg-primary/90 transition shadow-[0_0_15px_rgba(0,240,255,0.2)] disabled:opacity-50"
+              >
+                {loading ? 'Initiating...' : 'Initiate KYC Process'}
+              </button>
+              {verificationUrl && (
+                <a 
+                  href={verificationUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center space-x-2 text-sm text-primary hover:underline"
+                >
+                  <span>Complete Verification on Didit</span>
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Reputation Card */}
