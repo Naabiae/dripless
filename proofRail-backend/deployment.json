@@ -1,0 +1,4 @@
+{
+  "kycContract": "0xMockKycContractDeployed",
+  "escrowContract": "0xMockEscrowContractDeployed"
+}

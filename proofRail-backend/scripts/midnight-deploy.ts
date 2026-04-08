@@ -6,7 +6,7 @@ console.log('Compiling contracts...');
 // Mock compilation
 
 const deploymentPath = path.join(__dirname, '../deployment.json');
-let deployments = {};
+let deployments: Record<string, any> = {};
 if (fs.existsSync(deploymentPath)) {
   deployments = JSON.parse(fs.readFileSync(deploymentPath, 'utf-8'));
 }
