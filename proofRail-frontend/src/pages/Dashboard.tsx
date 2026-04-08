@@ -9,6 +9,8 @@ const Dashboard = () => {
   const [credential, setCredential] = useState<any>(null);
   const [verificationUrl, setVerificationUrl] = useState<string | null>(null);
 
+  const [reputation, setReputation] = useState<any>({ score: 0, completedTrades: 0, disputesWon: 0, disputesLost: 0 });
+
   useEffect(() => {
     const fetchCredential = async () => {
       if (user?.kycStatus === 'APPROVED') {
@@ -20,7 +22,18 @@ const Dashboard = () => {
         }
       }
     };
+
+    const fetchReputation = async () => {
+      try {
+        const { data } = await api.get('/reputation/me');
+        setReputation(data);
+      } catch (e) {
+        console.error("Failed to fetch reputation", e);
+      }
+    };
+
     fetchCredential();
+    fetchReputation();
   }, [user]);
 
   const handleInitiateKyc = async () => {
@@ -141,7 +154,7 @@ const Dashboard = () => {
             <div className="relative w-48 h-48 rounded-full border-4 border-surfaceHover flex items-center justify-center">
               <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin-slow"></div>
               <div className="text-center">
-                <span className="block text-4xl font-bold font-display text-white">850</span>
+                <span className="block text-4xl font-bold font-display text-white">{reputation.score || 0}</span>
                 <span className="text-sm text-gray-400 tracking-wider uppercase">Score</span>
               </div>
             </div>
@@ -149,11 +162,11 @@ const Dashboard = () => {
 
           <div className="grid grid-cols-2 gap-4 mt-4">
             <div className="bg-background rounded-lg p-4 text-center border border-surfaceHover">
-              <span className="block text-2xl font-bold text-green-400">12</span>
+              <span className="block text-2xl font-bold text-green-400">{reputation.completedTrades || 0}</span>
               <span className="text-xs text-gray-400 uppercase tracking-wide">Trades Won</span>
             </div>
             <div className="bg-background rounded-lg p-4 text-center border border-surfaceHover">
-              <span className="block text-2xl font-bold text-red-400">0</span>
+              <span className="block text-2xl font-bold text-red-400">{reputation.disputesLost || 0}</span>
               <span className="text-xs text-gray-400 uppercase tracking-wide">Disputes Lost</span>
             </div>
           </div>
