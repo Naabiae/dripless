@@ -1,4 +1,4 @@
-pragma language_version 0.28;
+pragma language_version 0.22.0;
 import CompactStandardLibrary;
 
 enum CredentialStatus { UNREGISTERED, REGISTERED, VERIFIED }
@@ -27,7 +27,7 @@ export circuit registerCredential(
     expiresAt: disclose(expiresAt),
     commitment: disclose(commitment),
   };
-  credentialRegistry.insert(walletAddressHash, entry);
+  credentialRegistry.insert(disclose(walletAddressHash), entry);
 }
 
 // Called by user to prove they hold matching claims
@@ -36,41 +36,34 @@ export circuit verifyCredential(): [] {
   const claimsCommitment = getClaimsCommitment();
 
   const entry = credentialRegistry.lookup(addrHash);
-  assert(entry is_some, "Credential not registered");
-
-  const e = entry.value;
-  assert(e.status == CredentialStatus.REGISTERED, "Already verified or revoked");
-  assert(e.commitment == claimsCommitment, "Claims do not match registered commitment");
-  assert(e.expiresAt > round as Uint<64>, "Credential expired");
+  
+  assert(entry.status == CredentialStatus.REGISTERED, "Already verified or revoked");
+  assert(entry.commitment == claimsCommitment, "Claims do not match registered commitment");
+  assert(entry.expiresAt > round as Uint<64>, "Credential expired");
 
   const updatedEntry = CredentialEntry {
     status: CredentialStatus.VERIFIED,
-    expiresAt: e.expiresAt,
-    commitment: e.commitment,
+    expiresAt: entry.expiresAt,
+    commitment: entry.commitment,
   };
   credentialRegistry.insert(addrHash, updatedEntry);
-  round.increment(1 as Uint<64>);
+  round.increment(1 as Uint<16>);
 }
 
 // Pure read — used by escrow contract to gate trade entry
 export circuit isVerified(walletAddressHash: Bytes<32>): Boolean {
-  const entry = credentialRegistry.lookup(walletAddressHash);
-  if (entry is_some) {
-    return entry.value.status == CredentialStatus.VERIFIED
-      && entry.value.expiresAt > round as Uint<64>;
-  }
-  return false;
+  const entry = credentialRegistry.lookup(disclose(walletAddressHash));
+  return entry.status == CredentialStatus.VERIFIED
+    && entry.expiresAt > round as Uint<64>;
 }
 
 // Called by backend admin to revoke
 export circuit revokeCredential(walletAddressHash: Bytes<32>): [] {
-  const entry = credentialRegistry.lookup(walletAddressHash);
-  assert(entry is_some, "Credential not found");
-  const e = entry.value;
+  const entry = credentialRegistry.lookup(disclose(walletAddressHash));
   const revokedEntry = CredentialEntry {
     status: CredentialStatus.UNREGISTERED,
-    expiresAt: e.expiresAt,
-    commitment: e.commitment,
+    expiresAt: entry.expiresAt,
+    commitment: entry.commitment,
   };
-  credentialRegistry.insert(walletAddressHash, revokedEntry);
+  credentialRegistry.insert(disclose(walletAddressHash), revokedEntry);
 }

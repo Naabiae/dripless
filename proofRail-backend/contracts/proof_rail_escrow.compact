@@ -1,4 +1,4 @@
-pragma language_version 0.28;
+pragma language_version 0.22.0;
 import CompactStandardLibrary;
 
 enum EscrowStatus { LOCKED, RELEASED_BUYER, RELEASED_SELLER, CANCELLED, EXPIRED }
@@ -7,7 +7,7 @@ struct EscrowEntry {
   status: EscrowStatus;
   sellerKeyHash: Bytes<32>;
   buyerKeyHash: Bytes<32>;
-  amountCommitment: Field;     // commitment to trade amount, never revealed
+  amountCommitment: Field;
   expiresAt: Uint<64>;
 }
 
@@ -28,9 +28,6 @@ export circuit lockFunds(
   expiresAt: Uint<64>
 ): [] {
   const sellerKeyHash = disclose(getSellerKeyHash());
-  
-  const existingEntry = escrowRegistry.lookup(tradeIdHash);
-  assert(existingEntry is_none, "Trade already has escrow");
 
   const entry = EscrowEntry {
     status: EscrowStatus.LOCKED,
@@ -40,8 +37,8 @@ export circuit lockFunds(
     expiresAt: disclose(expiresAt),
   };
 
-  escrowRegistry.insert(tradeIdHash, entry);
-  round.increment(1 as Uint<64>);
+  escrowRegistry.insert(disclose(tradeIdHash), entry);
+  round.increment(1 as Uint<16>);
 }
 
 // Backend-signed instruction releases to buyer
@@ -49,24 +46,21 @@ export circuit releaseToBuyer(
   tradeIdHash: Bytes<32>,
   releaseSignatureHash: Field
 ): [] {
-  const entry = escrowRegistry.lookup(tradeIdHash);
-  assert(entry is_some, "Escrow not found");
-
-  const e = entry.value;
-  assert(e.status == EscrowStatus.LOCKED, "Escrow not in LOCKED state");
-  assert(e.expiresAt > round as Uint<64>, "Escrow expired");
-  assert(transientCommit(releaseSignatureHash, round as Field) 
+  const entry = escrowRegistry.lookup(disclose(tradeIdHash));
+  assert(entry.status == EscrowStatus.LOCKED, "Escrow not in LOCKED state");
+  assert(entry.expiresAt > round as Uint<64>, "Escrow expired");
+  assert(transientCommit<Field>(releaseSignatureHash, round as Field) 
     == getReleaseSignatureHash(), "Invalid release signature");
 
   const updatedEntry = EscrowEntry {
     status: EscrowStatus.RELEASED_BUYER,
-    sellerKeyHash: e.sellerKeyHash,
-    buyerKeyHash: e.buyerKeyHash,
-    amountCommitment: e.amountCommitment,
-    expiresAt: e.expiresAt,
+    sellerKeyHash: entry.sellerKeyHash,
+    buyerKeyHash: entry.buyerKeyHash,
+    amountCommitment: entry.amountCommitment,
+    expiresAt: entry.expiresAt,
   };
-  escrowRegistry.insert(tradeIdHash, updatedEntry);
-  round.increment(1 as Uint<64>);
+  escrowRegistry.insert(disclose(tradeIdHash), updatedEntry);
+  round.increment(1 as Uint<16>);
 }
 
 // Admin-signed instruction releases to seller (dispute won by seller)
@@ -74,51 +68,43 @@ export circuit releaseToSeller(
   tradeIdHash: Bytes<32>,
   releaseSignatureHash: Field
 ): [] {
-  const entry = escrowRegistry.lookup(tradeIdHash);
-  assert(entry is_some, "Escrow not found");
-
-  const e = entry.value;
-  assert(e.status == EscrowStatus.LOCKED, "Escrow not in LOCKED state");
-  assert(transientCommit(releaseSignatureHash, round as Field)
+  const entry = escrowRegistry.lookup(disclose(tradeIdHash));
+  assert(entry.status == EscrowStatus.LOCKED, "Escrow not in LOCKED state");
+  assert(transientCommit<Field>(releaseSignatureHash, round as Field)
     == getReleaseSignatureHash(), "Invalid release signature");
 
   const updatedEntry = EscrowEntry {
     status: EscrowStatus.RELEASED_SELLER,
-    sellerKeyHash: e.sellerKeyHash,
-    buyerKeyHash: e.buyerKeyHash,
-    amountCommitment: e.amountCommitment,
-    expiresAt: e.expiresAt,
+    sellerKeyHash: entry.sellerKeyHash,
+    buyerKeyHash: entry.buyerKeyHash,
+    amountCommitment: entry.amountCommitment,
+    expiresAt: entry.expiresAt,
   };
-  escrowRegistry.insert(tradeIdHash, updatedEntry);
-  round.increment(1 as Uint<64>);
+  escrowRegistry.insert(disclose(tradeIdHash), updatedEntry);
+  round.increment(1 as Uint<16>);
 }
 
 // Seller cancels (only in LOCKED state, before expiry)
 export circuit cancelEscrow(tradeIdHash: Bytes<32>): [] {
-  const sellerKeyHash = getSellerKeyHash();
-  const entry = escrowRegistry.lookup(tradeIdHash);
-  assert(entry is_some, "Escrow not found");
-
-  const e = entry.value;
-  assert(e.status == EscrowStatus.LOCKED, "Cannot cancel non-LOCKED escrow");
-  assert(e.sellerKeyHash == sellerKeyHash, "Only seller can cancel");
+  const sellerKeyHash = disclose(getSellerKeyHash());
+  const entry = escrowRegistry.lookup(disclose(tradeIdHash));
+  assert(entry.status == EscrowStatus.LOCKED, "Cannot cancel non-LOCKED escrow");
+  assert(entry.sellerKeyHash == sellerKeyHash, "Only seller can cancel");
 
   const updatedEntry = EscrowEntry {
     status: EscrowStatus.CANCELLED,
-    sellerKeyHash: e.sellerKeyHash,
-    buyerKeyHash: e.buyerKeyHash,
-    amountCommitment: e.amountCommitment,
-    expiresAt: e.expiresAt,
+    sellerKeyHash: entry.sellerKeyHash,
+    buyerKeyHash: entry.buyerKeyHash,
+    amountCommitment: entry.amountCommitment,
+    expiresAt: entry.expiresAt,
   };
-  escrowRegistry.insert(tradeIdHash, updatedEntry);
-  round.increment(1 as Uint<64>);
+  escrowRegistry.insert(disclose(tradeIdHash), updatedEntry);
+  round.increment(1 as Uint<16>);
 }
 
 // Pure read — used by backend driver to check status
 export circuit getEscrowStatus(tradeIdHash: Bytes<32>): EscrowStatus {
-  const entry = escrowRegistry.lookup(tradeIdHash);
-  if (entry is_some) {
-    return entry.value.status;
-  }
-  return EscrowStatus.CANCELLED; // default for not-found
+  const entry = escrowRegistry.lookup(disclose(tradeIdHash));
+  return entry.status;
 }
+

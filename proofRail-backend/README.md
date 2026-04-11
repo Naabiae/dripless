@@ -48,6 +48,14 @@ $ npm run start:prod
 
 The ProofRail backend uses Midnight Network for privacy-preserving KYC credential verification and shielded P2P escrow.
 
+### 🚀 Quick Start
+
+**Want to get started in 5 minutes?** See [QUICK_START.md](./QUICK_START.md)
+
+### 📚 Full Deployment Guide
+
+**For complete setup, configuration, and troubleshooting:** See [DEPLOYMENT.md](./DEPLOYMENT.md)
+
 ### Prerequisites
 
 - Node.js 22+
@@ -57,36 +65,67 @@ The ProofRail backend uses Midnight Network for privacy-preserving KYC credentia
 
 ### Setup & Deployment
 
-1. Ensure the Proof Server is running:
+1. Generate a wallet (if you don't have one):
+```bash
+npm run midnight:generate-wallet
+```
+
+2. Fund your wallet via the [Preprod Faucet](https://faucet.preprod.midnight.network)
+
+3. Set your wallet seed:
+```bash
+export MIDNIGHT_WALLET_SEED="<your_seed_from_step_1>"
+```
+
+4. Start the Proof Server (for local development):
 ```bash
 docker-compose up -d proof-server
 ```
 
-2. Compile the contracts:
+5. **Full deployment in one command:**
 ```bash
-npm run midnight:compile
+npm run midnight:full-deploy
 ```
 
-3. Deploy contracts to Preprod:
-```bash
-npm run midnight:deploy
-```
-This saves the contract addresses to `deployment.json`.
+This runs:
+- `npm run midnight:compile` - Compile Compact contracts
+- `npm run midnight:deploy` - Deploy to Preprod testnet
+- `npm run midnight:verify` - Verify deployed contracts
 
-4. Verify the deployed contracts:
+### Available Commands
+
 ```bash
-npm run midnight:verify
+# Wallet Management
+npm run midnight:generate-wallet      # Generate new wallet
+
+# Smart Contract Management
+npm run midnight:compile              # Compile Compact contracts
+npm run midnight:deploy               # Deploy to Preprod
+npm run midnight:verify               # Verify deployment
+npm run midnight:full-deploy          # Compile + Deploy + Verify
+
+# Testing
+npm run test:midnight                 # Run Midnight integration tests (3-5 min)
 ```
 
-5. Run End-to-End Midnight Tests:
-```bash
-npm run test:midnight
-```
-*Note: The Midnight integration tests make actual calls to the Preprod blockchain and take ~3-5 minutes to complete due to zero-knowledge proof generation and block confirmation times.*
+### Environment Configuration
 
-### Faucets
-Fund your Preprod wallet using the official faucet:
-[Midnight Preprod Faucet](https://faucet.preprod.midnight.network)
+Copy and customize the example:
+```bash
+cp .env.midnight.example .env
+# Edit .env with your MIDNIGHT_WALLET_SEED
+```
+
+Required variables:
+- `MIDNIGHT_WALLET_SEED` - Your wallet seed (64 hex characters)
+- `PROOF_PROVIDER_URL` - Proof server URL (optional, defaults to preprod)
+
+### Contract Addresses
+
+After deployment, contract addresses are saved to `deployment.json`. Use these addresses in your:
+- Backend services (NestJS)
+- Frontend (React)
+- Integration tests
 
 ## Run tests
 
